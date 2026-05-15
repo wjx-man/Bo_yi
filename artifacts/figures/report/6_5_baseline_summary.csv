@@ -1,0 +1,6 @@
+label,target_wins,baseline_wins,games,target_win_rate,target_red_wins,target_blue_wins,average_steps
+MCTS50,108,92,200,0.5400,51,57,16.36
+Policy v1,105,95,200,0.5250,65,40,16.05
+Policy v2,112,88,200,0.5600,54,58,15.69
+Policy v3,112,88,200,0.5600,61,51,16.08
+Policy v4_full,143,57,200,0.7150,76,67,15.95

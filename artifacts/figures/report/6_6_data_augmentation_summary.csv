@@ -1,0 +1,6 @@
+stage,path,games,samples,policy_entropy_mean,note
+D2 mixed v2,artifacts/data/self_play_mixed_v2_1000g.npz,1000,17230,0.8272596001625061,Merged D0 and D1.
+D3 random root,artifacts/data/self_play_neural_mcts_v2_random_1000g_80s.npz,1000,18795,0.7176963090896606,Root neural-MCTS with random layouts.
+D4 mixed v3,artifacts/data/self_play_mixed_v3_random.npz,2000,36025,0.7700981497764587,V3 training data.
+D5 full NMCTS,artifacts/data/self_play_full_neural_mcts_v3_random_1000g_80s.npz,1000,17558,0.6648719906806946,Full neural-MCTS with V3 network.
+D6 final mix,artifacts/data/self_play_mixed_v4_full.npz,3000,53583,0.7356178164482117,Final V4_full training data.

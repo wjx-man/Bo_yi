@@ -1,0 +1,11 @@
+label,side,target_wins,games,target_win_rate
+MCTS50,red,51,100,0.5100
+MCTS50,blue,57,100,0.5700
+Policy v1,red,65,100,0.6500
+Policy v1,blue,40,100,0.4000
+Policy v2,red,54,100,0.5400
+Policy v2,blue,58,100,0.5800
+Policy v3,red,61,100,0.6100
+Policy v3,blue,51,100,0.5100
+Policy v4_full,red,76,100,0.7600
+Policy v4_full,blue,67,100,0.6700

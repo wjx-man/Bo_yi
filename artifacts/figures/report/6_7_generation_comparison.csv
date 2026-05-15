@@ -1,0 +1,3 @@
+comparison,winner,wins,games,win_rate,note
+v3 vs v2,v3,130,200,0.65,"Random layout, root neural-MCTS."
+v4_full vs v3,v4_full,110,200,0.55,"Random layout, full neural-MCTS."
