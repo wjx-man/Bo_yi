@@ -58,7 +58,11 @@ class PolicyValueAgent(PlayerAgent):
         )
         config = checkpoint.get("config", {})
         hidden_channels = int(config.get("hidden_channels", 64))
-        model = PolicyValueNet(hidden_channels=hidden_channels)
+        residual_blocks = int(config.get("residual_blocks", 0))
+        model = PolicyValueNet(
+            hidden_channels=hidden_channels,
+            residual_blocks=residual_blocks,
+        )
         model.load_state_dict(checkpoint["model_state_dict"])
         return model
 

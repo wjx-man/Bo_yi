@@ -6,7 +6,12 @@ import unittest
 import torch
 
 import main
-from einstein_chess.agents import MCTSAgent, NeuralMCTSAgent, PolicyValueAgent
+from einstein_chess.agents import (
+    FullNeuralMCTSAgent,
+    MCTSAgent,
+    NeuralMCTSAgent,
+    PolicyValueAgent,
+)
 from einstein_chess.engine import PlayerColor
 from einstein_chess.players import HumanPlayer, RandomAIPlayer
 from einstein_chess.training import PolicyValueNet
@@ -51,6 +56,21 @@ class MainCliTests(unittest.TestCase):
                 ]
             )
             self.assertIsInstance(main._build_player(PlayerColor.BLUE, args), NeuralMCTSAgent)
+
+            args = main._parse_args_from(
+                [
+                    "--blue",
+                    "full-neural-mcts",
+                    "--checkpoint",
+                    str(checkpoint),
+                    "--full-neural-mcts-simulations",
+                    "2",
+                ]
+            )
+            self.assertIsInstance(
+                main._build_player(PlayerColor.BLUE, args),
+                FullNeuralMCTSAgent,
+            )
         finally:
             if checkpoint.exists():
                 checkpoint.unlink()

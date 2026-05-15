@@ -32,7 +32,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from einstein_chess.agents import NeuralMCTSAgent, PolicyValueAgent  # noqa: E402
+from einstein_chess.agents import FullNeuralMCTSAgent, NeuralMCTSAgent, PolicyValueAgent  # noqa: E402
 from einstein_chess.engine import GameSnapshot, Move  # noqa: E402
 from einstein_chess.online_match_client import (  # noqa: E402
     OnlineMatchClient,
@@ -116,6 +116,17 @@ def _build_agent(args: argparse.Namespace, rng: random.Random) -> PlayerAgent:
             name="OnlinePolicy",
             device=args.device,
         )
+    if args.agent == "full-neural-mcts":
+        return FullNeuralMCTSAgent(
+            checkpoint_path=args.checkpoint,
+            name="OnlineFullNeuralMCTS",
+            simulations=args.full_neural_mcts_simulations,
+            c_puct=args.c_puct,
+            max_depth=args.full_neural_mcts_depth,
+            chance_mode=args.chance_mode,
+            device=args.device,
+            rng=rng,
+        )
     return NeuralMCTSAgent(
         checkpoint_path=args.checkpoint,
         name="OnlineNeuralMCTS",
@@ -132,7 +143,7 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument(
         "--agent",
-        choices=("policy", "neural-mcts"),
+        choices=("policy", "neural-mcts", "full-neural-mcts"),
         default="policy",
         help="policy=纯策略网络选子；neural-mcts=网络先验+估值的 MCTS",
     )
@@ -144,6 +155,9 @@ def main() -> None:
     )
     parser.add_argument("--device", default="cpu", help="cuda 或 cpu")
     parser.add_argument("--neural-mcts-simulations", type=int, default=80)
+    parser.add_argument("--full-neural-mcts-simulations", type=int, default=80)
+    parser.add_argument("--full-neural-mcts-depth", type=int, default=12)
+    parser.add_argument("--chance-mode", choices=("sample", "enumerate"), default="sample")
     parser.add_argument("--c-puct", type=float, default=1.5)
     parser.add_argument("--seed", type=int, default=2026)
     parser.add_argument(

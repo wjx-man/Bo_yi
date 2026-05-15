@@ -10,7 +10,12 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from einstein_chess.agents import MCTSAgent, NeuralMCTSAgent, PolicyValueAgent
+from einstein_chess.agents import (
+    FullNeuralMCTSAgent,
+    MCTSAgent,
+    NeuralMCTSAgent,
+    PolicyValueAgent,
+)
 from einstein_chess.engine import PlayerColor
 from einstein_chess.match import MatchRunner
 from einstein_chess.players import PlayerAgent, RandomAIPlayer
@@ -142,6 +147,22 @@ def _build_agent(
             device=args.device,
             rng=rng,
         )
+    if kind == "full-neural-mcts":
+        checkpoint = args.red_checkpoint if color is PlayerColor.RED else args.blue_checkpoint
+        if checkpoint is None:
+            checkpoint = args.checkpoint
+        if checkpoint is None:
+            raise ValueError("FullNeuralMCTSAgent requires --checkpoint or side-specific checkpoint.")
+        return FullNeuralMCTSAgent(
+            checkpoint_path=checkpoint,
+            name=f"{color.value}_full_neural_mcts",
+            simulations=args.full_neural_mcts_simulations,
+            c_puct=args.c_puct,
+            max_depth=args.full_neural_mcts_depth,
+            chance_mode=args.chance_mode,
+            device=args.device,
+            rng=rng,
+        )
     raise ValueError(f"Unknown agent kind: {kind}")
 
 
@@ -172,7 +193,7 @@ def _parse_args() -> argparse.Namespace:
         description="Evaluate 爱恩斯坦棋 agents by running complete matches."
     )
     parser.add_argument("--games", type=int, default=50)
-    agent_choices = ("random", "mcts", "policy", "neural-mcts")
+    agent_choices = ("random", "mcts", "policy", "neural-mcts", "full-neural-mcts")
     parser.add_argument("--red", choices=agent_choices, default="policy")
     parser.add_argument("--blue", choices=agent_choices, default="random")
     parser.add_argument(
@@ -188,6 +209,9 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--mcts-simulations", type=int, default=50)
     parser.add_argument("--mcts-rollout-steps", type=int, default=120)
     parser.add_argument("--neural-mcts-simulations", type=int, default=80)
+    parser.add_argument("--full-neural-mcts-simulations", type=int, default=80)
+    parser.add_argument("--full-neural-mcts-depth", type=int, default=12)
+    parser.add_argument("--chance-mode", choices=("sample", "enumerate"), default="sample")
     parser.add_argument("--c-puct", type=float, default=1.5)
     parser.add_argument("--max-turns", type=int, default=300)
     parser.add_argument("--seed", type=int, default=2026)

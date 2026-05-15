@@ -31,6 +31,8 @@ def main() -> None:
         exploration=args.exploration,
         c_puct=args.c_puct,
         max_rollout_steps=args.max_rollout_steps,
+        full_neural_mcts_depth=args.full_neural_mcts_depth,
+        chance_mode=args.chance_mode,
         max_turns=args.max_turns,
         checkpoint_path=args.checkpoint,
         device=args.device,
@@ -60,7 +62,7 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--agent",
-        choices=("mcts", "neural-mcts"),
+        choices=("mcts", "neural-mcts", "full-neural-mcts"),
         default="mcts",
         help="Self-play agent type.",
     )
@@ -99,6 +101,18 @@ def _parse_args() -> argparse.Namespace:
         type=int,
         default=160,
         help="Maximum rollout steps per MCTS simulation.",
+    )
+    parser.add_argument(
+        "--full-neural-mcts-depth",
+        type=int,
+        default=12,
+        help="Maximum search depth for full-neural-mcts.",
+    )
+    parser.add_argument(
+        "--chance-mode",
+        choices=("sample", "enumerate"),
+        default="sample",
+        help="Dice chance node handling for full-neural-mcts.",
     )
     parser.add_argument(
         "--max-turns",

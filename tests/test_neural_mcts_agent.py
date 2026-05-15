@@ -6,7 +6,7 @@ import unittest
 
 import torch
 
-from einstein_chess.agents import NeuralMCTSAgent
+from einstein_chess.agents import FullNeuralMCTSAgent, NeuralMCTSAgent
 from einstein_chess.engine import EinsteinGame, PlayerColor
 from einstein_chess.match import MatchRunner
 from einstein_chess.players import RandomAIPlayer
@@ -58,6 +58,51 @@ class NeuralMCTSAgentTests(unittest.TestCase):
 
             self.assertGreater(len(result.steps), 0)
             self.assertIn(result.reason, {"goal", "capture_all", "max_turns_exceeded"})
+        finally:
+            if checkpoint.exists():
+                checkpoint.unlink()
+
+    def test_full_neural_mcts_agent_returns_legal_move_and_policy(self) -> None:
+        checkpoint = Path("tests") / "_tmp_full_neural_mcts.pt"
+        try:
+            self._save_checkpoint(checkpoint)
+            game = EinsteinGame(rng=random.Random(7))
+            agent = FullNeuralMCTSAgent(
+                checkpoint_path=checkpoint,
+                simulations=6,
+                max_depth=4,
+                rng=random.Random(11),
+            )
+            legal_moves = game.get_legal_moves()
+
+            move = agent.choose_move(game.snapshot(), legal_moves)
+
+            self.assertIn(move, legal_moves)
+            self.assertEqual(sum(agent.last_visit_counts.values()), 6)
+            self.assertAlmostEqual(sum(agent.last_policy.values()), 1.0)
+            self.assertAlmostEqual(sum(agent.last_priors.values()), 1.0, places=5)
+        finally:
+            if checkpoint.exists():
+                checkpoint.unlink()
+
+    def test_full_neural_mcts_agent_supports_enumerated_chance_nodes(self) -> None:
+        checkpoint = Path("tests") / "_tmp_full_neural_mcts_enumerate.pt"
+        try:
+            self._save_checkpoint(checkpoint)
+            game = EinsteinGame(rng=random.Random(7))
+            agent = FullNeuralMCTSAgent(
+                checkpoint_path=checkpoint,
+                simulations=3,
+                max_depth=3,
+                chance_mode="enumerate",
+                rng=random.Random(11),
+            )
+            legal_moves = game.get_legal_moves()
+
+            move = agent.choose_move(game.snapshot(), legal_moves)
+
+            self.assertIn(move, legal_moves)
+            self.assertEqual(sum(agent.last_visit_counts.values()), 3)
         finally:
             if checkpoint.exists():
                 checkpoint.unlink()

@@ -116,6 +116,36 @@ class TrainingDataTests(unittest.TestCase):
             if checkpoint_path.exists():
                 checkpoint_path.unlink()
 
+    def test_generate_full_neural_mcts_self_play_dataset(self) -> None:
+        checkpoint_path = Path("tests") / "_tmp_full_neural_self_play.pt"
+        try:
+            model = PolicyValueNet(hidden_channels=8)
+            torch.save(
+                {
+                    "model_state_dict": model.state_dict(),
+                    "config": {"hidden_channels": 8},
+                },
+                checkpoint_path,
+            )
+
+            dataset = generate_self_play_dataset(
+                num_games=1,
+                agent_kind="full-neural-mcts",
+                checkpoint_path=checkpoint_path,
+                simulations=2,
+                full_neural_mcts_depth=3,
+                max_turns=20,
+                rng=random.Random(29),
+            )
+
+            self.assertEqual(dataset.states.ndim, 4)
+            self.assertEqual(dataset.states.shape[1:], (STATE_CHANNELS, 5, 5))
+            self.assertEqual(dataset.policies.shape, (dataset.states.shape[0], ACTION_SIZE))
+            self.assertTrue(np.allclose(dataset.policies.sum(axis=1), 1.0))
+        finally:
+            if checkpoint_path.exists():
+                checkpoint_path.unlink()
+
     def test_random_layout_self_play_dataset(self) -> None:
         dataset = generate_self_play_dataset(
             num_games=1,

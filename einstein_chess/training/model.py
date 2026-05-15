@@ -7,25 +7,53 @@ from .action_codec import ACTION_SIZE
 from .state_encoder import STATE_CHANNELS
 
 
+class ResidualBlock(nn.Module):
+    def __init__(self, channels: int) -> None:
+        super().__init__()
+        self.layers = nn.Sequential(
+            nn.Conv2d(channels, channels, kernel_size=3, padding=1, bias=False),
+            nn.BatchNorm2d(channels),
+            nn.ReLU(),
+            nn.Conv2d(channels, channels, kernel_size=3, padding=1, bias=False),
+            nn.BatchNorm2d(channels),
+        )
+        self.activation = nn.ReLU()
+
+    def forward(self, states: torch.Tensor) -> torch.Tensor:
+        return self.activation(states + self.layers(states))
+
+
 class PolicyValueNet(nn.Module):
     def __init__(
         self,
         in_channels: int = STATE_CHANNELS,
         hidden_channels: int = 64,
         action_size: int = ACTION_SIZE,
+        residual_blocks: int = 0,
     ) -> None:
         super().__init__()
-        self.backbone = nn.Sequential(
-            nn.Conv2d(in_channels, hidden_channels, kernel_size=3, padding=1),
-            nn.BatchNorm2d(hidden_channels),
-            nn.ReLU(),
-            nn.Conv2d(hidden_channels, hidden_channels, kernel_size=3, padding=1),
-            nn.BatchNorm2d(hidden_channels),
-            nn.ReLU(),
-            nn.Conv2d(hidden_channels, hidden_channels, kernel_size=3, padding=1),
-            nn.BatchNorm2d(hidden_channels),
-            nn.ReLU(),
-        )
+        if residual_blocks < 0:
+            raise ValueError("residual_blocks must be non-negative.")
+        self.residual_blocks = residual_blocks
+        if residual_blocks == 0:
+            self.backbone = nn.Sequential(
+                nn.Conv2d(in_channels, hidden_channels, kernel_size=3, padding=1),
+                nn.BatchNorm2d(hidden_channels),
+                nn.ReLU(),
+                nn.Conv2d(hidden_channels, hidden_channels, kernel_size=3, padding=1),
+                nn.BatchNorm2d(hidden_channels),
+                nn.ReLU(),
+                nn.Conv2d(hidden_channels, hidden_channels, kernel_size=3, padding=1),
+                nn.BatchNorm2d(hidden_channels),
+                nn.ReLU(),
+            )
+        else:
+            self.backbone = nn.Sequential(
+                nn.Conv2d(in_channels, hidden_channels, kernel_size=3, padding=1, bias=False),
+                nn.BatchNorm2d(hidden_channels),
+                nn.ReLU(),
+                *[ResidualBlock(hidden_channels) for _ in range(residual_blocks)],
+            )
         flattened_size = hidden_channels * 5 * 5
         self.policy_head = nn.Sequential(
             nn.Flatten(),

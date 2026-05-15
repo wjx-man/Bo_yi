@@ -59,6 +59,17 @@ class PolicyValueTrainingTests(unittest.TestCase):
             if output_path.exists():
                 output_path.unlink()
 
+    def test_residual_policy_value_net_forward_is_compatible(self) -> None:
+        model = PolicyValueNet(hidden_channels=16, residual_blocks=2)
+        states = torch.zeros((2, STATE_CHANNELS, 5, 5), dtype=torch.float32)
+
+        policy_logits, predicted_values = model(states)
+
+        self.assertEqual(tuple(policy_logits.shape), (2, ACTION_SIZE))
+        self.assertEqual(tuple(predicted_values.shape), (2,))
+        self.assertTrue(torch.isfinite(policy_logits).all())
+        self.assertTrue(torch.isfinite(predicted_values).all())
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -31,6 +31,21 @@ class PolicyValueAgentTests(unittest.TestCase):
             if checkpoint.exists():
                 checkpoint.unlink()
 
+    def test_policy_value_agent_loads_residual_checkpoint(self) -> None:
+        checkpoint = Path("tests") / "_tmp_policy_agent_residual.pt"
+        try:
+            self._save_checkpoint(checkpoint, residual_blocks=2)
+            game = EinsteinGame(rng=random.Random(7))
+            agent = PolicyValueAgent(checkpoint)
+            legal_moves = game.get_legal_moves()
+
+            move = agent.choose_move(game.snapshot(), legal_moves)
+
+            self.assertIn(move, legal_moves)
+        finally:
+            if checkpoint.exists():
+                checkpoint.unlink()
+
     def test_policy_value_agent_runs_in_match_runner(self) -> None:
         checkpoint = Path("tests") / "_tmp_policy_match.pt"
         try:
@@ -53,12 +68,15 @@ class PolicyValueAgentTests(unittest.TestCase):
             if checkpoint.exists():
                 checkpoint.unlink()
 
-    def _save_checkpoint(self, path: Path) -> None:
-        model = PolicyValueNet(hidden_channels=8)
+    def _save_checkpoint(self, path: Path, residual_blocks: int = 0) -> None:
+        model = PolicyValueNet(hidden_channels=8, residual_blocks=residual_blocks)
         torch.save(
             {
                 "model_state_dict": model.state_dict(),
-                "config": {"hidden_channels": 8},
+                "config": {
+                    "hidden_channels": 8,
+                    "residual_blocks": residual_blocks,
+                },
             },
             path,
         )

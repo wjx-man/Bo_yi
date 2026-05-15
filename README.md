@@ -83,6 +83,12 @@ Train a v2 network from mixed data:
 python scripts/train_policy_value.py artifacts/data/self_play_mixed_v2_1000g.npz --epochs 60 --batch-size 256 --hidden-channels 64 --device cuda --checkpoint artifacts/checkpoints/policy_value_v2_latest.pt --best-val-loss-checkpoint artifacts/checkpoints/policy_value_v2_best_loss.pt --best-val-top1-checkpoint artifacts/checkpoints/policy_value_v2_best_top1.pt --log artifacts/logs/train_v2_mixed.csv
 ```
 
+Train a residual policy-value network:
+
+```bash
+python scripts/train_policy_value.py artifacts/data/self_play_mixed_v3_random.npz --epochs 80 --batch-size 256 --hidden-channels 64 --residual-blocks 4 --value-loss-weight 0.5 --lr-scheduler plateau --early-stopping-patience 10 --device cuda --checkpoint artifacts/checkpoints/policy_value_resnet_v4_latest.pt --best-val-loss-checkpoint artifacts/checkpoints/policy_value_resnet_v4_best_loss.pt --best-val-top1-checkpoint artifacts/checkpoints/policy_value_resnet_v4_best_top1.pt --log artifacts/logs/train_resnet_v4.csv
+```
+
 Evaluate a trained policy-value agent:
 
 ```bash
@@ -99,6 +105,12 @@ Evaluate neural MCTS with random opening layouts:
 
 ```bash
 python scripts/evaluate_agents.py --layout random --games 100 --red neural-mcts --blue neural-mcts --red-checkpoint artifacts/checkpoints/policy_value_v3_best_loss.pt --blue-checkpoint artifacts/checkpoints/policy_value_v2_best_loss.pt --device cuda --neural-mcts-simulations 80 --output artifacts/logs/eval_random_v3_red_vs_v2_blue.csv
+```
+
+Evaluate full multi-layer neural MCTS against root neural MCTS:
+
+```bash
+python scripts/evaluate_agents.py --layout random --games 100 --red full-neural-mcts --blue neural-mcts --red-checkpoint artifacts/checkpoints/policy_value_v3_best_loss.pt --blue-checkpoint artifacts/checkpoints/policy_value_v3_best_loss.pt --device cuda --full-neural-mcts-simulations 80 --neural-mcts-simulations 80 --full-neural-mcts-depth 12 --chance-mode sample --output artifacts/logs/eval_random_full_v3_red_vs_root_v3_blue.csv
 ```
 
 Save evaluation results as CSV:

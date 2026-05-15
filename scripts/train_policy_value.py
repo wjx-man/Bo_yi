@@ -48,12 +48,16 @@ def main() -> None:
         num_workers=0,
     )
 
-    model = PolicyValueNet(hidden_channels=args.hidden_channels).to(device)
+    model = PolicyValueNet(
+        hidden_channels=args.hidden_channels,
+        residual_blocks=args.residual_blocks,
+    ).to(device)
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=args.lr,
         weight_decay=args.weight_decay,
     )
+    scheduler = _build_scheduler(optimizer, args)
 
     args.checkpoint.parent.mkdir(parents=True, exist_ok=True)
     args.best_val_loss_checkpoint.parent.mkdir(parents=True, exist_ok=True)
@@ -63,6 +67,7 @@ def main() -> None:
     rows: list[dict[str, float | int | str]] = []
     best_val_loss = float("inf")
     best_val_top1 = -1.0
+    epochs_without_val_loss_improvement = 0
     for epoch in range(1, args.epochs + 1):
         train_metrics = _run_epoch(
             model=model,
@@ -90,10 +95,15 @@ def main() -> None:
             "val_value_loss": val_metrics["value_loss"],
             "val_policy_top1": val_metrics["policy_top1"],
             "val_value_mae": val_metrics["value_mae"],
+            "lr": _current_lr(optimizer),
         }
         rows.append(row)
-        if row["val_total_loss"] < best_val_loss:
+        improved_val_loss = (
+            float(row["val_total_loss"]) < best_val_loss - args.early_stopping_min_delta
+        )
+        if improved_val_loss:
             best_val_loss = float(row["val_total_loss"])
+            epochs_without_val_loss_improvement = 0
             _save_checkpoint(
                 path=args.best_val_loss_checkpoint,
                 model=model,
@@ -101,6 +111,8 @@ def main() -> None:
                 rows=rows,
                 selection_metric="val_total_loss",
             )
+        else:
+            epochs_without_val_loss_improvement += 1
         if row["val_policy_top1"] > best_val_top1:
             best_val_top1 = float(row["val_policy_top1"])
             _save_checkpoint(
@@ -110,6 +122,7 @@ def main() -> None:
                 rows=rows,
                 selection_metric="val_policy_top1",
             )
+        _step_scheduler(scheduler, row["val_total_loss"])
         print(
             "epoch "
             f"{epoch:03d} | "
@@ -118,8 +131,18 @@ def main() -> None:
             f"value={row['train_value_loss']:.4f} "
             f"top1={row['train_policy_top1']:.3f} | "
             f"val_loss={row['val_total_loss']:.4f} "
-            f"val_top1={row['val_policy_top1']:.3f}"
+            f"val_top1={row['val_policy_top1']:.3f} "
+            f"lr={row['lr']:.6g}"
         )
+        if (
+            args.early_stopping_patience > 0
+            and epochs_without_val_loss_improvement >= args.early_stopping_patience
+        ):
+            print(
+                "early_stopping: "
+                f"val_total_loss did not improve for {args.early_stopping_patience} epochs"
+            )
+            break
 
     _write_log(args.log, rows)
     _save_checkpoint(
@@ -278,10 +301,13 @@ def _save_checkpoint(
             "model_state_dict": model.state_dict(),
             "config": {
                 "hidden_channels": args.hidden_channels,
+                "residual_blocks": args.residual_blocks,
                 "dataset": str(args.dataset),
                 "epochs": args.epochs,
                 "batch_size": args.batch_size,
                 "lr": args.lr,
+                "lr_scheduler": args.lr_scheduler,
+                "early_stopping_patience": args.early_stopping_patience,
                 "weight_decay": args.weight_decay,
                 "value_loss_weight": args.value_loss_weight,
             },
@@ -298,6 +324,47 @@ def _set_seed(seed: int) -> None:
     torch.manual_seed(seed)
 
 
+def _build_scheduler(
+    optimizer: torch.optim.Optimizer,
+    args: argparse.Namespace,
+) -> torch.optim.lr_scheduler.LRScheduler | torch.optim.lr_scheduler.ReduceLROnPlateau | None:
+    if args.lr_scheduler == "none":
+        return None
+    if args.lr_scheduler == "plateau":
+        return torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer,
+            mode="min",
+            factor=args.lr_factor,
+            patience=args.lr_patience,
+            min_lr=args.min_lr,
+        )
+    if args.lr_scheduler == "cosine":
+        return torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer,
+            T_max=max(args.epochs, 1),
+            eta_min=args.min_lr,
+        )
+    raise ValueError(f"Unknown lr scheduler: {args.lr_scheduler}")
+
+
+def _step_scheduler(
+    scheduler: torch.optim.lr_scheduler.LRScheduler
+    | torch.optim.lr_scheduler.ReduceLROnPlateau
+    | None,
+    val_loss: float | int | str,
+) -> None:
+    if scheduler is None:
+        return
+    if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+        scheduler.step(float(val_loss))
+    else:
+        scheduler.step()
+
+
+def _current_lr(optimizer: torch.optim.Optimizer) -> float:
+    return float(optimizer.param_groups[0]["lr"])
+
+
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Train a PyTorch policy-value network from 爱恩斯坦棋 NPZ self-play data."
@@ -307,8 +374,19 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--weight-decay", type=float, default=1e-4)
-    parser.add_argument("--value-loss-weight", type=float, default=1.0)
+    parser.add_argument("--value-loss-weight", type=float, default=0.5)
     parser.add_argument("--hidden-channels", type=int, default=64)
+    parser.add_argument("--residual-blocks", type=int, default=4)
+    parser.add_argument(
+        "--lr-scheduler",
+        choices=("none", "plateau", "cosine"),
+        default="plateau",
+    )
+    parser.add_argument("--lr-patience", type=int, default=4)
+    parser.add_argument("--lr-factor", type=float, default=0.5)
+    parser.add_argument("--min-lr", type=float, default=1e-5)
+    parser.add_argument("--early-stopping-patience", type=int, default=10)
+    parser.add_argument("--early-stopping-min-delta", type=float, default=1e-4)
     parser.add_argument("--val-fraction", type=float, default=0.2)
     parser.add_argument("--seed", type=int, default=2026)
     parser.add_argument("--device", type=str, default="cpu")

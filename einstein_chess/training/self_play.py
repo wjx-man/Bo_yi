@@ -59,6 +59,8 @@ def generate_self_play_dataset(
     exploration: float = 1.4,
     c_puct: float = 1.5,
     max_rollout_steps: int = 160,
+    full_neural_mcts_depth: int = 12,
+    chance_mode: str = "sample",
     max_turns: int = 300,
     checkpoint_path: str | Path | None = None,
     device: str = "cpu",
@@ -81,6 +83,8 @@ def generate_self_play_dataset(
             exploration=exploration,
             c_puct=c_puct,
             max_rollout_steps=max_rollout_steps,
+            full_neural_mcts_depth=full_neural_mcts_depth,
+            chance_mode=chance_mode,
             max_turns=max_turns,
             checkpoint_path=checkpoint_path,
             device=device,
@@ -105,6 +109,8 @@ def generate_self_play_game(
     exploration: float = 1.4,
     c_puct: float = 1.5,
     max_rollout_steps: int = 160,
+    full_neural_mcts_depth: int = 12,
+    chance_mode: str = "sample",
     max_turns: int = 300,
     checkpoint_path: str | Path | None = None,
     device: str = "cpu",
@@ -126,6 +132,8 @@ def generate_self_play_game(
             exploration=exploration,
             c_puct=c_puct,
             max_rollout_steps=max_rollout_steps,
+            full_neural_mcts_depth=full_neural_mcts_depth,
+            chance_mode=chance_mode,
             checkpoint_path=checkpoint_path,
             device=device,
             rng=random.Random(local_rng.randrange(2**31)),
@@ -137,6 +145,8 @@ def generate_self_play_game(
             exploration=exploration,
             c_puct=c_puct,
             max_rollout_steps=max_rollout_steps,
+            full_neural_mcts_depth=full_neural_mcts_depth,
+            chance_mode=chance_mode,
             checkpoint_path=checkpoint_path,
             device=device,
             rng=random.Random(local_rng.randrange(2**31)),
@@ -194,6 +204,8 @@ def _build_self_play_agent(
     exploration: float,
     c_puct: float,
     max_rollout_steps: int,
+    full_neural_mcts_depth: int,
+    chance_mode: str,
     checkpoint_path: str | Path | None,
     device: str,
     rng: random.Random,
@@ -219,7 +231,22 @@ def _build_self_play_agent(
             device=device,
             rng=rng,
         )
-    raise ValueError("agent_kind must be 'mcts' or 'neural-mcts'.")
+    if agent_kind == "full-neural-mcts":
+        if checkpoint_path is None:
+            raise ValueError("full-neural-mcts self-play requires checkpoint_path.")
+        from ..agents.full_neural_mcts import FullNeuralMCTSAgent
+
+        return FullNeuralMCTSAgent(
+            checkpoint_path=checkpoint_path,
+            name=f"{color.value}_full_neural_mcts_self_play",
+            simulations=simulations,
+            c_puct=c_puct,
+            max_depth=full_neural_mcts_depth,
+            chance_mode=chance_mode,
+            device=device,
+            rng=rng,
+        )
+    raise ValueError("agent_kind must be 'mcts', 'neural-mcts', or 'full-neural-mcts'.")
 
 
 def _values_for_samples(
