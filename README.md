@@ -29,6 +29,12 @@ Run human vs neural-MCTS in the GUI:
 python main.py --red human --blue neural-mcts --checkpoint artifacts/checkpoints/policy_value_v2_best_loss.pt --device cuda --neural-mcts-simulations 80
 ```
 
+Connect the final model to an online match server:
+
+```bash
+python scripts/competition_client.py --host 127.0.0.1 --port 8765 --checkpoint artifacts/checkpoints/policy_value_v4_full_best_loss.pt --device cuda --agent full-neural-mcts --full-neural-mcts-simulations 80 --full-neural-mcts-depth 12 --chance-mode sample
+```
+
 Run human vs policy network in the GUI:
 
 ```bash

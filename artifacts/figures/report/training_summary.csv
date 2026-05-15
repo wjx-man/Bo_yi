@@ -1,0 +1,6 @@
+model,key,log,epochs_recorded,best_val_loss,best_val_loss_epoch,best_val_top1,best_val_top1_epoch,final_train_loss,final_val_loss,note
+V1 MCTS data,v1,artifacts/logs/train_500g_100s_gpu.csv,50,2.092786868413289,7,0.460919540229885,13,1.066947644279456,2.3971107093767188,Initial policy-value network trained from basic MCTS self-play.
+V2 mixed,v2,artifacts/logs/train_v2_mixed.csv,60,1.971634131562758,4,0.6012768427161926,29,1.063397049004438,2.34171734503792,Mixed basic MCTS and root neural-MCTS self-play.
+V3 random layout,v3,artifacts/logs/train_v3_random.csv,50,1.8010048232915747,7,0.6773074253990284,7,0.9421097079885246,2.0695747700108167,Added random-opening root neural-MCTS data.
+ResNet V4 trial,resnet_v4,artifacts/logs/train_resnet_v4.csv,26,1.904260165487868,16,0.6979875086745315,11,1.767328791052496,1.9166169357829257,Residual CNN experiment; rejected after match evaluation.
+V4 full-MCTS final,v4_full,artifacts/logs/train_v4_full.csv,16,1.7846595986470577,6,0.6875699888017918,12,1.111804245623247,1.8729106370705904,Final CNN model trained with full neural-MCTS self-play data.

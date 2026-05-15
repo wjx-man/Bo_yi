@@ -1,0 +1,5 @@
+experiment,winner_label,wins,games,win_rate,note
+V3 vs V2,V3,130,200,0.65,Random layouts; root neural-MCTS; red/blue swapped.
+Full MCTS vs Root,Full MCTS,117,200,0.585,Same V3 network; isolates search improvement.
+ResNet V4 vs V3,ResNet V4,65,200,0.325,Failed model-structure experiment.
+V4_full vs V3,V4_full,110,200,0.55,Final model versus previous best under full neural-MCTS.
