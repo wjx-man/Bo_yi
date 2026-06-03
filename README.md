@@ -249,6 +249,7 @@ artifacts/figures/report/
 
 相关说明文档：
 
+- `docs/CODE_PRESENTATION_WALKTHROUGH.md`：面向代码答辩的展示顺序、逐段注释和常见问题；
 - `docs/REPORT_OUTLINE.md`：最终报告大纲；
 - `docs/REPORT_FIGURES_AND_TABLES_INDEX.md`：报告图片和表格使用说明；
 - `docs/PROJECT_DETAILED_INTRODUCTION.md`：项目详细介绍；
