@@ -1,3 +1,9 @@
+"""完整比赛运行器。
+
+智能体只负责回答“我想走哪一步”，这个文件负责裁判工作：
+开局布局、15 分钟包干计时、回合推进、非法动作判负、超时判负和比赛日志。
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -14,6 +20,8 @@ TimeProvider = Callable[[], float]
 
 @dataclass(frozen=True)
 class MatchStep:
+    """记录比赛中的一个回合步骤，便于评估和复盘。"""
+
     turn_index: int
     color: PlayerColor
     dice_roll: int
@@ -27,6 +35,8 @@ class MatchStep:
 
 @dataclass(frozen=True)
 class MatchResult:
+    """一局比赛的最终结果。"""
+
     winner: PlayerColor | None
     loser: PlayerColor | None
     reason: str
@@ -37,7 +47,7 @@ class MatchResult:
 
 
 class MatchRunner:
-    """Runs a complete timed game between two PlayerAgent instances."""
+    """在两个 PlayerAgent 之间运行一局完整计时比赛。"""
 
     def __init__(
         self,
@@ -60,6 +70,7 @@ class MatchRunner:
         self.charge_layout_time = charge_layout_time
         self.layout_mode = layout_mode
         self.max_turns = max_turns
+        # 红蓝双方分别维护剩余时间，符合包干计时规则。
         self.remaining_seconds = {
             PlayerColor.RED: self.total_seconds,
             PlayerColor.BLUE: self.total_seconds,
@@ -67,6 +78,7 @@ class MatchRunner:
         self.steps: list[MatchStep] = []
 
     def play(self) -> MatchResult:
+        """执行完整比赛，直到获胜、超时、非法动作或达到回合上限。"""
         setup_result = self._setup_game()
         if setup_result is not None:
             return setup_result
@@ -87,6 +99,7 @@ class MatchRunner:
                     reason="timeout",
                 )
 
+            # 裁判从统一规则引擎获取合法走法，智能体不能自行定义规则。
             legal_moves = self.game.get_legal_moves()
             if not legal_moves:
                 turn_index = self.game.turn_index
@@ -104,6 +117,7 @@ class MatchRunner:
                 continue
 
             turn_index = self.game.turn_index
+            # 计时调用当前智能体，并从该方剩余时间中扣除思考耗时。
             move, elapsed_seconds, error = self._call_choose_move(color, legal_moves)
             self.remaining_seconds[color] -= elapsed_seconds
 
@@ -119,6 +133,7 @@ class MatchRunner:
                     loser=color,
                     reason=f"agent_error:{type(error).__name__}",
                 )
+            # 即使智能体返回了 Move，也必须由裁判再次检查是否合法。
             if move not in legal_moves:
                 return self._finish(
                     winner=color.opponent,
@@ -151,6 +166,7 @@ class MatchRunner:
         )
 
     def _setup_game(self) -> MatchResult | None:
+        """获取并验证双方开局布局，布局错误或超时会直接判负。"""
         layouts: dict[PlayerColor, Mapping[int, Position]] = {}
         for color in (PlayerColor.RED, PlayerColor.BLUE):
             if self.layout_mode == "random":
@@ -195,6 +211,7 @@ class MatchRunner:
     def _call_choose_layout(
         self, color: PlayerColor
     ) -> tuple[Mapping[int, Position], float, Exception | None]:
+        """计时调用智能体的布局选择，并捕获异常。"""
         agent = self.players[color]
         start = self.time_provider()
         try:
@@ -209,6 +226,7 @@ class MatchRunner:
     def _call_choose_move(
         self, color: PlayerColor, legal_moves: Sequence[Move]
     ) -> tuple[Move | None, float, Exception | None]:
+        """计时调用智能体走棋，并捕获异常交给裁判处理。"""
         agent = self.players[color]
         snapshot = self.game.snapshot()
         start = self.time_provider()
@@ -231,6 +249,7 @@ class MatchRunner:
         elapsed_seconds: float,
         note: str,
     ) -> None:
+        """将当前步骤及双方剩余时间写入比赛日志。"""
         self.steps.append(
             MatchStep(
                 turn_index=turn_index,
@@ -251,6 +270,7 @@ class MatchRunner:
         loser: PlayerColor | None,
         reason: str,
     ) -> MatchResult:
+        """统一构造比赛结束结果。"""
         return MatchResult(
             winner=winner,
             loser=loser,
@@ -262,6 +282,10 @@ class MatchRunner:
         )
 
     def _win_reason(self, move: Move) -> str:
+        """区分到达目标角获胜和吃光对方棋子获胜。"""
         if move.to_position == move.color.goal:
             return "goal"
         return "capture_all"
+
+
+# 下一步阅读：scripts/competition_client.py
