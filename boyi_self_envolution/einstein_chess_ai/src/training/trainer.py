@@ -1,4 +1,4 @@
-"""High-level self-play trainer."""
+"""高层自我博弈训练器。"""
 
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ from .self_play import SelfPlayRunner
 
 
 class SelfPlayTrainer:
-    """Coordinate self-play, replay sampling, optimization, and evaluation."""
+    """协调自我博弈、经验回放、参数优化和模型评估。"""
 
     def __init__(self, config: dict[str, Any]) -> None:
         self.config = config
@@ -36,12 +36,15 @@ class SelfPlayTrainer:
         configure_torch_backend(self.device)
         print(f"Using device: {self.device}", flush=True)
         set_global_seed(config.get("seed"))
+        # 一个模型同时包含 Actor 和 Critic，并在训练和自我博弈之间共享参数。
         self.model = ActorCriticNet(
             in_channels=config.get("in_channels", 18),
             num_res_blocks=config.get("num_res_blocks", 2),
         ).to(self.device)
+        # 自我博弈使用 sample 模式，使策略能够探索不同走法。
         self.agent = ActorCriticAgent(self.model, device=str(self.device), mode="sample", temperature=config.get("temperature", 1.0))
         self.replay = TransitionReplayBuffer(config.get("replay_buffer_size", 100_000), seed=config.get("seed"))
+        # AdamW 根据反向传播得到的梯度更新模型全部可训练参数。
         self.optimizer = torch.optim.AdamW(
             self.model.parameters(),
             lr=config.get("learning_rate", 3.0e-4),
@@ -78,7 +81,7 @@ class SelfPlayTrainer:
         )
 
     def _prepare_run_outputs(self) -> None:
-        """Backup and optionally clear previous training outputs before a new run."""
+        """在新训练开始前，按配置备份并清理旧输出。"""
         output_paths = [
             self.project_root / "checkpoints",
             self.project_root / "logs",
@@ -118,11 +121,12 @@ class SelfPlayTrainer:
             print("Cleared previous checkpoints, logs, plots, game records, and replay buffer.", flush=True)
 
     def train(self) -> None:
-        """Run the configured training loop."""
+        """运行完整训练循环：先生成数据，再用数据更新模型。"""
         cfg = self.config
         global_game_id = 1
         total_iterations = cfg.get("num_iterations", 10)
         for iteration in range(1, total_iterations + 1):
+            # 第一阶段：当前策略与自己对弈，把每一步 transition 放入回放池。
             rewards = []
             games_this_iter = cfg.get("self_play_games_per_iter", 4)
             for _ in range(games_this_iter):
@@ -133,8 +137,10 @@ class SelfPlayTrainer:
             metrics = {"loss": 0.0, "policy_loss": 0.0, "value_loss": 0.0, "entropy": 0.0}
             train_steps = cfg.get("train_steps_per_iter", 8)
             if len(self.replay) > 0:
+                # 第二阶段：从回放池随机采样多个 batch，执行参数更新。
                 for _ in range(train_steps):
                     batch = self.replay.sample(cfg.get("batch_size", 128))
+                    # 前向传播并构造 Actor、Critic 和熵三部分损失。
                     loss, step_metrics = compute_actor_critic_loss(
                         self.model,
                         batch,
@@ -144,12 +150,17 @@ class SelfPlayTrainer:
                         ppo_clip_eps=cfg.get("ppo_clip_eps", 0.2),
                         device=self.device,
                     )
+                    # 清空旧梯度，否则 PyTorch 默认会把多次 backward 的梯度累加。
                     self.optimizer.zero_grad(set_to_none=True)
+                    # 反向传播：自动计算每个模型参数对总损失的偏导数。
                     loss.backward()
+                    # 限制梯度范数，避免梯度过大造成训练不稳定。
                     torch.nn.utils.clip_grad_norm_(self.model.parameters(), cfg.get("grad_clip_norm", 1.0))
+                    # 根据梯度真正修改卷积层、Actor 和 Critic 的参数。
                     self.optimizer.step()
                     metrics = step_metrics
 
+            # 第三阶段：定期用贪心策略对战基准智能体，衡量真实棋力。
             evaluated = False
             if iteration % cfg.get("eval_interval", 5) == 0:
                 self._evaluate(iteration)
@@ -181,6 +192,7 @@ class SelfPlayTrainer:
         plot_all_curves(self.project_root / "logs", self.project_root / "plots")
 
     def _evaluate(self, iteration: int) -> None:
+        """使用确定性的贪心策略评估模型，并保存最佳检查点。"""
         greedy = ActorCriticAgent(self.model, device=str(self.device), mode="greedy")
         results = []
         baseline_agents = (RandomAgent(seed=iteration), RuleBasedAgent(seed=iteration))
@@ -221,7 +233,7 @@ class SelfPlayTrainer:
             )
 
     def _build_scheduler(self):
-        """Create an optional learning-rate scheduler."""
+        """创建可选的学习率调度器，使训练后期使用更小的更新步长。"""
         scheduler_name = str(self.config.get("scheduler", "none")).lower()
         if scheduler_name == "none":
             return None
@@ -242,7 +254,7 @@ class SelfPlayTrainer:
         raise ValueError("scheduler must be one of: none, cosine, plateau")
 
     def _step_scheduler(self, metrics: dict[str, float], evaluated: bool) -> None:
-        """Advance the configured scheduler."""
+        """在合适时机推进学习率调度器。"""
         if self.scheduler is None:
             return
         scheduler_name = str(self.config.get("scheduler", "none")).lower()
@@ -254,7 +266,7 @@ class SelfPlayTrainer:
                 self.scheduler.step(score)
 
     def _current_lr(self) -> float:
-        """Return the current optimizer learning rate."""
+        """返回优化器当前使用的学习率。"""
         return float(self.optimizer.param_groups[0]["lr"])
 
     def _print_progress(
@@ -265,7 +277,7 @@ class SelfPlayTrainer:
         avg_reward: float,
         metrics: dict[str, float],
     ) -> None:
-        """Print one compact training progress line."""
+        """打印一行紧凑的训练进度。"""
         win_rate = "N/A" if self.last_eval_win_rate is None else f"{self.last_eval_win_rate * 100:.0f}%"
         print(
             f"Iter {iteration}/{total_iterations} | "
@@ -279,7 +291,7 @@ class SelfPlayTrainer:
         )
 
     def save_checkpoint(self, iteration: int, filename: str | None = None) -> Path:
-        """Save model and optimizer state."""
+        """保存模型、优化器、学习率调度器和训练配置。"""
         ckpt_dir = self.project_root / "checkpoints"
         ckpt_dir.mkdir(parents=True, exist_ok=True)
         path = ckpt_dir / (filename or f"model_iter_{iteration:04d}.pt")

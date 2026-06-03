@@ -1,3 +1,5 @@
+"""验证 GUI 智能体工厂能够创建界面中支持的所有智能体类型。"""
+
 import pytest
 
 pytest.importorskip("torch")
@@ -11,6 +13,7 @@ from src.gui.controller import make_agent
 
 
 def test_make_agent_supports_tk_agent_choices():
+    # 使用很小的搜索参数，让测试只验证对象创建，不进行昂贵搜索。
     params = {
         "device": "cpu",
         "actor_mode": "greedy",
@@ -22,6 +25,7 @@ def test_make_agent_supports_tk_agent_choices():
         "mcts_exploration": 1.0,
         "seed": 1,
     }
+    # GUI 下拉框中的名称必须映射到正确的智能体类。
     expected = {
         "Human": HumanAgent,
         "Random": RandomAgent,

@@ -1,4 +1,4 @@
-"""Experience replay buffer."""
+"""强化学习经验回放池。"""
 
 from __future__ import annotations
 
@@ -10,7 +10,11 @@ import numpy as np
 
 
 class TransitionReplayBuffer:
-    """Fixed-size replay buffer for transition dictionaries."""
+    """固定容量的经验回放池。
+
+    回放池保存自我博弈产生的历史 transition。训练时随机采样，能够打乱
+    相邻棋步之间的强相关性；容量满后，deque 会自动丢弃最旧的数据。
+    """
 
     def __init__(self, capacity: int = 100_000, seed: int | None = None) -> None:
         self.capacity = int(capacity)
@@ -21,14 +25,15 @@ class TransitionReplayBuffer:
         return len(self.buffer)
 
     def add(self, transition: dict[str, Any]) -> None:
-        """Add one transition."""
+        """加入一条 transition。"""
         self.buffer.append(transition)
 
     def sample(self, batch_size: int) -> dict[str, Any]:
-        """Sample a batch and stack array fields."""
+        """随机采样一个 batch，并将相同字段堆叠为 NumPy 数组。"""
         if not self.buffer:
             raise ValueError("Cannot sample from an empty replay buffer")
         batch = self.rng.sample(list(self.buffer), min(int(batch_size), len(self.buffer)))
+        # 模型一次处理整个 batch，因此 state 等字段需要从多条记录堆叠起来。
         return {
             "state": np.stack([item["state"] for item in batch]).astype(np.float32),
             "legal_mask": np.stack([item["legal_mask"] for item in batch]).astype(np.float32),

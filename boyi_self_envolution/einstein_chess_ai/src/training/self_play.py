@@ -1,4 +1,4 @@
-"""Self-play data generation and game-record saving."""
+"""自我博弈数据生成和棋局记录保存。"""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from .replay_buffer import TransitionReplayBuffer
 
 
 class SelfPlayRunner:
-    """Generate self-play transitions with the current policy."""
+    """让当前策略与自己对弈，并生成强化学习所需的 transition。"""
 
     def __init__(
         self,
@@ -29,7 +29,7 @@ class SelfPlayRunner:
         self.game_record_dir.mkdir(parents=True, exist_ok=True)
 
     def play_game(self, game_id: int, seed: int | None = None, save_record: bool = True) -> dict[str, Any]:
-        """Run one self-play game and return its record."""
+        """运行一局自我博弈，返回完整棋局记录。"""
         env = EinsteinChessEnv(seed=seed, max_steps=self.max_steps)
         obs = env.reset(seed=seed)
         record: dict[str, Any] = {
@@ -45,13 +45,21 @@ class SelfPlayRunner:
         done = False
         step_id = 0
         while not done and step_id < self.max_steps:
+            # 在执行动作前保存状态和合法动作掩码，它们是训练输入。
             state = env.get_encoded_state()
             legal_mask = env.legal_action_mask()
             board_before = obs["board"]
+
+            # 同一个 agent 同时控制红蓝双方；环境会按当前玩家视角编码状态。
             diagnostics = self.agent.evaluate_policy(env)
             next_obs, reward, done, info = env.step(diagnostics.action)
+
+            # env.step 后环境已经切换到下一位玩家，因此 next_state 是对手视角。
             next_state = env.get_encoded_state()
             next_mask = env.legal_action_mask()
+
+            # 一条 transition 描述“在状态 state 执行动作 action 后发生了什么”。
+            # old_log_prob 用于训练时限制新策略相对旧策略的变化幅度。
             transition = {
                 "state": state,
                 "legal_mask": legal_mask,
@@ -68,6 +76,8 @@ class SelfPlayRunner:
                 "step_id": step_id,
             }
             self.replay_buffer.add(transition)
+
+            # move 是给人阅读和回放使用的详细记录，不直接参与梯度更新。
             move = {
                 "step": step_id,
                 "player": info["current_player"],

@@ -1,4 +1,4 @@
-"""Evaluate a trained model against traditional search agents."""
+"""评估训练模型对抗 Minimax、Alpha-Beta 和 MCTS 等传统搜索算法的表现。"""
 
 from __future__ import annotations
 
@@ -17,6 +17,7 @@ from src.utils.logger import CSVLogger
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """定义传统搜索评估所需的命令行参数。"""
     parser = argparse.ArgumentParser(description="Evaluate ActorCritic against search baselines.")
     parser.add_argument("--checkpoint", default="checkpoints/model.pt")
     parser.add_argument("--num_games", type=int, default=1000)
@@ -41,7 +42,7 @@ def evaluate_with_progress(
     seed: int | None,
     progress_interval: int,
 ) -> dict:
-    """Evaluate `agent` against one opponent and print periodic progress."""
+    """对战一个传统搜索对手，并定期打印耗时和当前胜率。"""
     start = time.perf_counter()
     last_report_time = start
     last_report_finished = 0
@@ -56,6 +57,7 @@ def evaluate_with_progress(
         if progress_interval > 0 and (finished == 1 or finished % progress_interval == 0):
             print(f"{opponent_name}: starting game {finished}/{num_games}", flush=True)
         env = EinsteinChessEnv(seed=None if seed is None else seed + game_idx, max_steps=max_steps)
+        # 待评估模型交替控制红蓝双方，减少颜色和先手偏差。
         env.reset(first_player=RED if game_idx % 2 == 0 else BLUE, seed=None if seed is None else seed + game_idx)
         controlled_player = RED if game_idx % 2 == 0 else BLUE
         agents = {controlled_player: agent, opponent(controlled_player): opponent_agent}
@@ -114,6 +116,7 @@ def main() -> None:
         checkpoint = root / checkpoint
 
     device = resolve_device(args.device)
+    # 传统算法评估同样使用 greedy 模式，确保模型行为可重复。
     agent = ActorCriticAgent(checkpoint=checkpoint, device=device, mode="greedy")
     logger = CSVLogger(
         root / args.output,
@@ -134,6 +137,7 @@ def main() -> None:
     )
 
     opponents = (
+        # 搜索深度和模拟次数来自命令行参数，便于比较不同强度的基准。
         MinimaxAgent(depth=args.minimax_depth, seed=args.seed + 11),
         AlphaBetaAgent(depth=args.alphabeta_depth, seed=args.seed + 22),
         MCTSAgent(
@@ -161,7 +165,7 @@ def main() -> None:
 
 
 def describe_baseline(agent: Agent) -> str:
-    """Return compact baseline parameter text for CSV logs."""
+    """将搜索算法参数压缩为适合写入 CSV 的文本。"""
     if isinstance(agent, MinimaxAgent):
         return f"depth={agent.depth}"
     if isinstance(agent, AlphaBetaAgent):

@@ -1,4 +1,4 @@
-"""Evaluation utilities."""
+"""模型棋力评估工具。"""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from src.env.rules import BLUE, RED, opponent
 
 @dataclass
 class EvaluationResult:
-    """Summary metrics for an evaluation run."""
+    """一组对局评估结果的汇总指标。"""
 
     iteration: int
     opponent: str
@@ -30,7 +30,7 @@ class EvaluationResult:
 
 
 class Evaluator:
-    """Run AI-vs-baseline and match simulations."""
+    """运行智能体对战，并统计胜率、平均步数和获胜原因。"""
 
     def __init__(self, max_steps: int = 300) -> None:
         self.max_steps = max_steps
@@ -43,12 +43,13 @@ class Evaluator:
         iteration: int = 0,
         seed: int | None = None,
     ) -> EvaluationResult:
-        """Evaluate `agent` alternating colors against `opponent_agent`."""
+        """让待评估智能体交替执红、执蓝，降低先手和颜色带来的偏差。"""
         wins = 0
         total_steps = 0
         total_reward = 0.0
         reasons: Counter[str] = Counter()
         for game_idx in range(num_games):
+            # 每局使用不同但可复现的随机种子，减少单次骰子运气的影响。
             env = EinsteinChessEnv(seed=None if seed is None else seed + game_idx, max_steps=self.max_steps)
             env.reset(first_player=RED if game_idx % 2 == 0 else BLUE, seed=None if seed is None else seed + game_idx)
             controlled_player = RED if game_idx % 2 == 0 else BLUE
@@ -60,6 +61,7 @@ class Evaluator:
                 action_player = env.current_player
                 action = actor.select_action(env)
                 _, reward, done, _ = env.step(action)
+                # 奖励统一换算成待评估智能体的视角，方便跨颜色统计。
                 if action_player == controlled_player:
                     game_reward += reward
                 else:
@@ -81,7 +83,7 @@ class Evaluator:
         )
 
     def best_of_seven(self, red_agent: Agent, blue_agent: Agent, seed: int | None = None) -> dict:
-        """Run a seven-game, first-to-four match with the required first-player order."""
+        """按指定先手顺序运行七局四胜制比赛。"""
         first_players = [RED, BLUE, BLUE, RED, RED, BLUE, BLUE]
         wins = {RED: 0, BLUE: 0}
         games = []

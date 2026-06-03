@@ -1,2 +1,2 @@
-"""Training, replay, self-play, and evaluation modules."""
+"""训练、经验回放、自我博弈和评估模块。"""
 

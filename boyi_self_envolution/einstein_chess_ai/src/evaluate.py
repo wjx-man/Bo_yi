@@ -1,4 +1,4 @@
-"""Command-line evaluation entry point."""
+"""加载训练好的模型，并与基础智能体对战的命令行入口。"""
 
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ from src.utils.logger import CSVLogger
 
 
 def main() -> None:
+    # 命令行参数决定模型文件、对局数量、运行设备和对手类型。
     parser = argparse.ArgumentParser(description="Evaluate an Einstein chess checkpoint.")
     parser.add_argument("--checkpoint", default="checkpoints/model.pt")
     parser.add_argument("--num_games", type=int, default=20)
@@ -26,6 +27,7 @@ def main() -> None:
 
     root = Path(__file__).resolve().parents[1]
     device = resolve_device(args.device)
+    # 评估使用 greedy 模式，每一步选择概率最大的动作，避免采样带来的波动。
     agent = ActorCriticAgent(checkpoint=root / args.checkpoint, device=device, mode="greedy")
     evaluator = Evaluator()
     logger = CSVLogger(
@@ -43,6 +45,7 @@ def main() -> None:
         ],
     )
     opponents = []
+    # 可以单独评估一个对手，也可以一次评估所有基础对手。
     if args.opponent in {"random", "all"}:
         opponents.append(RandomAgent(seed=1))
     if args.opponent in {"rule_based", "all"}:
@@ -51,6 +54,7 @@ def main() -> None:
         opponents.append(MCTSAgent(simulations=args.mcts_simulations, max_depth=args.mcts_depth, seed=3))
 
     for opponent in opponents:
+        # 每个对手都会生成一行汇总指标并写入 CSV。
         result = evaluator.evaluate(agent, opponent, num_games=args.num_games)
         logger.log(result.as_dict())
         print(result.as_dict())

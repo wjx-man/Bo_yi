@@ -1,4 +1,4 @@
-"""Traditional search agents for Einstein chess evaluation."""
+"""用于对比评估的传统搜索智能体：Minimax、Alpha-Beta 和 MCTS。"""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ DICE_VALUES = tuple(range(1, 7))
 
 
 def _advance_with_dice(env: EinsteinChessEnv, action: int, next_dice: int) -> EinsteinChessEnv:
-    """Apply one legal action, then inject a chance-node dice result."""
+    """复制环境、执行动作，并手动注入机会节点的下一次骰子结果。"""
     child = env.clone()
     player = child.current_player
     legal = child.legal_actions()
@@ -44,13 +44,14 @@ def _terminal_value(env: EinsteinChessEnv, root_player: str) -> float | None:
 
 
 def heuristic_value(env: EinsteinChessEnv, root_player: str) -> float:
-    """Evaluate a board from ``root_player``'s perspective."""
+    """从根玩家视角评价局面，分数越大表示越有利。"""
     terminal = _terminal_value(env, root_player)
     if terminal is not None:
         return terminal
 
     opp = opponent(root_player)
     score = 0.0
+    # 棋子数量、推进程度和吃子压力共同构成非终局估值。
     score += 4.0 * (len(env.alive_pieces(root_player)) - len(env.alive_pieces(opp)))
     score += _progress_score(env, root_player)
     score -= _progress_score(env, opp)
@@ -108,7 +109,7 @@ def _pseudo_legal_actions(env: EinsteinChessEnv, player: str) -> Iterable[int]:
 
 
 class MinimaxAgent(Agent):
-    """Expectiminimax agent that averages over future dice rolls."""
+    """对未来骰子结果求平均的期望极小化搜索智能体。"""
 
     name = "minimax"
 
@@ -117,6 +118,7 @@ class MinimaxAgent(Agent):
         self.rng = random.Random(seed)
 
     def select_action(self, env: EinsteinChessEnv) -> int:
+        """搜索每个合法动作的期望价值，选择最高分动作。"""
         actions = env.legal_actions()
         if not actions:
             raise RuntimeError("No legal actions available")
@@ -127,6 +129,7 @@ class MinimaxAgent(Agent):
         return self.rng.choice([action for score, action in scored if score == best])
 
     def _search(self, env: EinsteinChessEnv, root_player: str, depth: int, cache: dict[tuple, float]) -> float:
+        """在决策节点执行 max/min 搜索，并使用缓存避免重复计算。"""
         terminal = _terminal_value(env, root_player)
         if terminal is not None or depth <= 0:
             return heuristic_value(env, root_player)
@@ -137,6 +140,7 @@ class MinimaxAgent(Agent):
         if not actions:
             return heuristic_value(env, root_player)
         values = [self._action_value(env, action, root_player, depth, cache) for action in actions]
+        # 根玩家希望分数最大，对手希望根玩家分数最小。
         value = max(values) if env.current_player == root_player else min(values)
         cache[key] = value
         return value
@@ -149,6 +153,7 @@ class MinimaxAgent(Agent):
         depth: int,
         cache: dict[tuple, float],
     ) -> float:
+        """将六种等概率骰子结果的搜索值取平均，得到动作期望价值。"""
         first_child = _advance_with_dice(env, action, DICE_VALUES[0])
         if first_child.is_terminal():
             return heuristic_value(first_child, root_player)
@@ -160,7 +165,7 @@ class MinimaxAgent(Agent):
 
 
 class AlphaBetaAgent(MinimaxAgent):
-    """Expectiminimax agent with alpha-beta pruning at decision nodes."""
+    """在决策节点加入 Alpha-Beta 剪枝的期望极小化搜索。"""
 
     name = "alpha_beta"
 
@@ -193,6 +198,7 @@ class AlphaBetaAgent(MinimaxAgent):
         beta: float,
         cache: dict[tuple, float],
     ) -> float:
+        """使用 alpha 和 beta 跳过不可能影响最终选择的搜索分支。"""
         terminal = _terminal_value(env, root_player)
         if terminal is not None or depth <= 0:
             return heuristic_value(env, root_player)
@@ -210,6 +216,7 @@ class AlphaBetaAgent(MinimaxAgent):
                 value = max(value, self._action_value_ab(env, action, root_player, depth, alpha, beta, cache))
                 alpha = max(alpha, value)
                 if alpha >= beta:
+                    # 当前分支已经不可能优于已知选择，可以停止继续搜索。
                     cutoff = True
                     break
         else:
@@ -246,6 +253,8 @@ class AlphaBetaAgent(MinimaxAgent):
 
 @dataclass
 class _MCTSNode:
+    """完整 MCTS 搜索树中的一个节点。"""
+
     env: EinsteinChessEnv
     root_player: str
     parent: "_MCTSNode | None" = None
@@ -264,7 +273,7 @@ class _MCTSNode:
 
 
 class MCTSAgent(Agent):
-    """Monte Carlo tree search agent with random dice rollouts."""
+    """使用选择、扩展、模拟、回传四阶段的蒙特卡洛树搜索智能体。"""
 
     name = "mcts"
 
@@ -281,6 +290,7 @@ class MCTSAgent(Agent):
         self.rng = random.Random(seed)
 
     def select_action(self, env: EinsteinChessEnv) -> int:
+        """执行多次树搜索模拟，选择访问次数最多且平均价值高的动作。"""
         actions = env.legal_actions()
         if not actions:
             raise RuntimeError("No legal actions available")
@@ -288,6 +298,7 @@ class MCTSAgent(Agent):
             return actions[0]
         root = _MCTSNode(env.clone(), env.current_player)
         for _ in range(max(1, self.simulations)):
+            # MCTS 的一次迭代：选择/扩展节点 -> 模拟 -> 回传结果。
             node = self._select(root)
             value = self._rollout(node.env.clone(), root.root_player)
             self._backpropagate(node, value)
@@ -311,6 +322,7 @@ class MCTSAgent(Agent):
         return child
 
     def _best_child(self, node: _MCTSNode) -> _MCTSNode:
+        """使用 UCB 同时考虑子节点平均价值和探索奖励。"""
         sign = 1.0 if node.env.current_player == node.root_player else -1.0
         parent_log = math.log(max(1, node.visits))
 
@@ -324,6 +336,7 @@ class MCTSAgent(Agent):
         return max(node.children.values(), key=score)
 
     def _rollout(self, env: EinsteinChessEnv, root_player: str) -> float:
+        """从当前节点随机模拟若干步，并返回终局或启发式价值。"""
         steps = 0
         while not env.is_terminal() and steps < self.rollout_steps:
             actions = env.legal_actions()
@@ -335,6 +348,7 @@ class MCTSAgent(Agent):
         return normalized_heuristic_value(env, root_player)
 
     def _backpropagate(self, node: _MCTSNode, value: float) -> None:
+        """将一次模拟得到的价值沿父节点链向上传播。"""
         while node is not None:
             node.visits += 1
             node.value_sum += value

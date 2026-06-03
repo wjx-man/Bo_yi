@@ -1,4 +1,4 @@
-"""Actor-Critic model-backed agent."""
+"""由 Actor-Critic 神经网络驱动的智能体。"""
 
 from __future__ import annotations
 
@@ -17,16 +17,19 @@ from .base import Agent
 
 @dataclass
 class ActionDiagnostics:
-    """Policy diagnostics useful for GUI and game records."""
+    """一次决策的附加信息，训练、GUI 和棋局记录都会使用。"""
 
     action: int
+    # 选择该动作时的对数概率，PPO 风格损失需要用它与新策略比较。
     log_prob: float
+    # Critic 对当前局面的价值预测。
     value: float
+    # 18 个动作的完整概率，便于界面展示和调试。
     probabilities: list[float]
 
 
 class ActorCriticAgent(Agent):
-    """Select actions with a PyTorch Actor-Critic network."""
+    """使用 Actor-Critic 网络选择动作的智能体。"""
 
     name = "actor_critic"
 
@@ -48,23 +51,27 @@ class ActorCriticAgent(Agent):
             self.load(checkpoint)
 
     def load(self, checkpoint: str | Path) -> None:
-        """Load model weights from a checkpoint."""
+        """从检查点加载模型参数。"""
         data = torch.load(checkpoint, map_location=self.device)
         state = data.get("model_state_dict", data)
         self.model.load_state_dict(state)
 
     @torch.no_grad()
     def evaluate_policy(self, env: EinsteinChessEnv) -> ActionDiagnostics:
-        """Return selected action plus policy/value diagnostics."""
+        """执行一次只推理、不计算梯度的前向传播。"""
         self.model.eval()
+        # 环境状态原本是 [18, 5, 5]，unsqueeze(0) 增加 batch 维度。
         state = torch.from_numpy(env.get_encoded_state()).unsqueeze(0).to(self.device)
         mask = torch.from_numpy(env.legal_action_mask()).unsqueeze(0).to(self.device)
         logits, value = self.model(state)
+        # 温度越高，动作分布越平缓；温度越低，越倾向于最高分动作。
         logits = logits / self.temperature
         dist = masked_distribution(logits, mask)
         if self.mode == "sample":
+            # 自我博弈训练时使用采样，保留探索能力。
             action_tensor = dist.sample()
         else:
+            # 评估和实际对战时使用贪心选择，保证决策稳定。
             action_tensor = torch.argmax(dist.probs, dim=-1)
         log_prob = dist.log_prob(action_tensor).item()
         probs = dist.probs.squeeze(0).detach().cpu().numpy().astype(float)

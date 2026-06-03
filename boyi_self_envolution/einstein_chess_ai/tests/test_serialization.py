@@ -1,7 +1,10 @@
+"""验证棋局记录能够无损保存为 JSON 并重新读取。"""
+
 from src.utils.serialization import load_json, save_json
 
 
 def test_game_record_save_and_load(tmp_path):
+    # tmp_path 由 pytest 提供，测试结束后会自动清理临时文件。
     record = {
         "game_id": 1,
         "first_player": "red",

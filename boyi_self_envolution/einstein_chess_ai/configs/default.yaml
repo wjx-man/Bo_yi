@@ -1,23 +1,37 @@
 project_root: .
 backup_outputs_on_start: false
 clear_outputs_on_start: true
+
+# 随机种子和训练设备。device=auto 会优先选择可用的加速设备。
 seed: 42
 device: auto
+
+# 模型输入为 18 个 5x5 平面，主干中使用 2 个残差块。
 in_channels: 18
 num_res_blocks: 2
+
+# 强化学习核心参数：未来奖励折扣、优化器学习率和学习率调度方式。
 gamma: 0.95
 learning_rate: 0.0003
 min_learning_rate: 0.00001
 scheduler: cosine
 plateau_factor: 0.5
 plateau_patience: 5
+
+# 每次训练采样的 transition 数量，以及经验回放池最大容量。
 batch_size: 128
 replay_buffer_size: 100000
+
+# 总损失 = 策略损失 + value_coef * 价值损失 - entropy_coef * 策略熵。
 entropy_coef: 0.01
 value_coef: 0.5
+
+# PPO 风格裁剪范围为 [1-eps, 1+eps]，梯度裁剪用于稳定反向传播。
 ppo_clip_eps: 0.2
 weight_decay: 0.0001
 grad_clip_norm: 1.0
+
+# 自我博弈的采样温度，以及训练、评估和保存频率。
 temperature: 1.0
 num_iterations: 3
 self_play_games_per_iter: 2

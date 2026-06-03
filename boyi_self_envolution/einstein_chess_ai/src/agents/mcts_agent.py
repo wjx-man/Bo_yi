@@ -1,4 +1,4 @@
-"""Monte Carlo Tree Search style baseline agent."""
+"""轻量级蒙特卡洛树搜索风格智能体。"""
 
 from __future__ import annotations
 
@@ -13,11 +13,10 @@ from src.env.rules import BLUE, GOAL_CORNERS, PIECE_IDS, RED, opponent
 
 
 class MCTSAgent(Agent):
-    """A lightweight root-parallel MCTS baseline.
+    """只在根节点分配模拟次数的轻量级 MCTS 基准。
 
-    Each move runs `simulations` UCB-guided playouts from the root and limits
-    each playout to `max_depth` steps. Rollouts use the rule-based policy with
-    a small amount of random exploration.
+    每次选择动作时，算法反复模拟未来棋局，并用 UCB 在“尝试新动作”和
+    “继续验证高分动作”之间平衡。模拟阶段主要使用规则智能体，并加入少量随机探索。
     """
 
     name = "mcts"
@@ -39,6 +38,7 @@ class MCTSAgent(Agent):
         self.random_rollout = RandomAgent(seed=seed)
 
     def select_action(self, env: EinsteinChessEnv) -> int:
+        """模拟每个根动作的未来结果，返回平均价值最高的动作。"""
         actions = env.legal_actions()
         if not actions:
             raise RuntimeError("No legal actions available")
@@ -50,6 +50,7 @@ class MCTSAgent(Agent):
         totals = {action: 0.0 for action in actions}
 
         for _ in range(max(1, self.simulations)):
+            # 每次模拟选择一个根动作，并在复制的环境中继续向后推演。
             action = self._select_root_action(actions, visits, totals)
             sim_env = env.clone()
             sim_env.rng.seed(self.rng.randint(0, 2**31 - 1))
@@ -61,17 +62,20 @@ class MCTSAgent(Agent):
         return max(actions, key=lambda action: totals[action] / max(1, visits[action]))
 
     def _select_root_action(self, actions: list[int], visits: dict[int, int], totals: dict[int, float]) -> int:
+        """使用 UCB 公式选择下一次需要模拟的根动作。"""
         unvisited = [action for action in actions if visits[action] == 0]
         if unvisited:
             return self.rng.choice(unvisited)
         total_visits = sum(visits.values())
         return max(
             actions,
+            # 前半部分偏好平均收益高的动作，后半部分偏好访问次数少的动作。
             key=lambda action: totals[action] / visits[action]
             + self.exploration * math.sqrt(math.log(total_visits + 1) / visits[action]),
         )
 
     def _evaluate_rollout(self, env: EinsteinChessEnv, root_player: str, remaining_depth: int, done: bool) -> float:
+        """继续模拟若干步；终局返回胜负，否则使用启发式函数估值。"""
         if done or env.is_terminal():
             return self._terminal_value(env, root_player)
         for _ in range(max(0, remaining_depth)):
@@ -87,6 +91,7 @@ class MCTSAgent(Agent):
         return 1.0 if env.winner == root_player else -1.0
 
     def _heuristic_value(self, env: EinsteinChessEnv, root_player: str) -> float:
+        """根据存活棋子数量和向目标角的推进程度估计局面价值。"""
         opp = opponent(root_player)
         own_alive = len(env.alive_pieces(root_player))
         opp_alive = len(env.alive_pieces(opp))
